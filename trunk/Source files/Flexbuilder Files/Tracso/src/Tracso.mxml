@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" backgroundGradientAlphas="[1.0, 1.0]" backgroundGradientColors="[#FFFFFF, #FFFFFF]" color="#FFFFFF"
+	creationComplete="initApp()" width="1024" height="768">
+<mx:Script>
+	<![CDATA[
+		import com.google.maps.styles.FillStyle;
+		import com.google.maps.overlays.Marker;
+		import com.google.maps.overlays.MarkerOptions;
+		import com.google.maps.controls.MapTypeControl;
+		import com.google.maps.controls.PositionControl;
+		import com.google.maps.controls.ZoomControl;
+		import com.google.maps.controls.ZoomControlOptions;
+		import com.google.maps.controls.PositionControlOptions;
+		import com.google.maps.styles.StrokeStyle;
+		import com.google.maps.overlays.PolylineOptions;
+		import com.google.maps.overlays.Polyline;
+		import mx.collections.XMLListCollection;
+		import com.google.maps.InfoWindowOptions;
+		import com.google.maps.interfaces.IMapType;
+		import com.google.maps.MapTypeOptions;
+		import com.google.maps.controls.MapTypeControlOptions;
+		import mx.rpc.events.FaultEvent;
+		import mx.rpc.events.ResultEvent;
+		import mx.controls.Alert;
+	    import com.google.maps.LatLng;
+	    import com.google.maps.Map;
+	    import com.google.maps.MapEvent;
+	    import com.google.maps.MapType;
+		
+		private var serviceURL: String = "http://localhost:8080/tracso-alpha/tracso.jsp";
+		
+		private var userid: String = "-1";
+		private var username: String = "INVALID";
+		private var sid: String = "0A0A0A0A0A0";
+		
+		
+	    private function onMapReady(event:Event):void {
+			map.addControl(new ZoomControl());
+			map.addControl(new PositionControl());
+			map.addControl(new MapTypeControl());	      
+          this.map.enableContinuousZoom();
+
+	      this.map.setCenter(new LatLng(40.736072,-73.992062), 14, MapType.SATELLITE_MAP_TYPE);	      
+	      this.map.enableCrosshairs();
+	      this.map.mouseEnabled= true;	      
+	      
+	      getPeopleList();
+	    }
+	    	
+		public function initApp(): void
+		{
+				
+		}
+		
+		public function getURL(queryString: String): String
+		{
+			var s: String = serviceURL+"?tx="+(new Date()).getMilliseconds()+"&"+queryString;
+			return s;
+		}
+		
+		public function login(): void
+		{
+			loginFunctionalityViewStack.selectedIndex=1;
+			var loginQueryString: String = "reqType=1&userid="+userIdInput.text+"&password="+passwordInput.text;
+			
+			tracsoService = new HTTPService();
+			tracsoService.resultFormat = "e4x";
+			tracsoService.url = getURL(loginQueryString);
+			tracsoService.addEventListener(ResultEvent.RESULT,loginSuccess);
+			tracsoService.addEventListener(FaultEvent.FAULT,handleFault);
+			tracsoService.send();
+			//Alert.show(tracsoService.url);
+		}
+		
+		public function loginSuccess(event: ResultEvent): void
+		{
+	        var t_sid:String = event.result.sid ;
+	        var t_uid:String = event.result.uid ;
+	        var t_uname:String = event.result.uname ;
+	        
+	        if(t_uid == "-1")
+	        {
+				loginFunctionalityViewStack.selectedIndex=2;
+				mainViewStack.selectedIndex = 0;	        	
+	        	return;
+	        }
+	        
+	        userid = t_uid;
+	        username = t_uname;
+	        sid = t_sid;
+	        
+	        loginFunctionalityViewStack.selectedIndex = 3;
+	        mainViewStack.selectedIndex = 1;
+	        
+	        welcomeMessage.text = "Welcome! "+username.toLocaleUpperCase()+".";
+			//Alert.show(result);
+		}
+		
+		public function handleFault(event: FaultEvent): void
+		{
+			Alert.show(event.message.toString());
+		}
+		
+		public function logout(): void
+		{
+			loginFunctionalityViewStack.selectedIndex=0;
+			mainViewStack.selectedIndex = 0;
+			welcomeMessage.text = "";
+			//Clear SID and other data varaibles and reset the login screen.
+		}
+		
+		public function getPeopleList(): void
+		{
+			var loginQueryString: String = "reqType=3&sid="+sid+"&uid="+userid+"&alpha="+alphabetsList.selectedLabel;
+			
+			tracsoService = new HTTPService();
+			tracsoService.resultFormat = "e4x";
+			tracsoService.url = getURL(loginQueryString);
+			tracsoService.addEventListener(ResultEvent.RESULT,peopleListSuccess);
+			tracsoService.addEventListener(FaultEvent.FAULT,handleFault);
+			tracsoService.send();
+			namesList.dataProvider = null;
+			tripsList.dataProvider = null;
+			//Alert.show(tracsoService.url);
+		}
+		
+		public function peopleListSuccess(event: ResultEvent): void
+		{
+	        var t_sid:String = event.result.sid ;
+	        var t_uid:String = event.result.uid ;
+	        var t_uname:String = event.result.uname ;
+	        
+	        userid = t_uid;
+	        username = t_uname;
+	        sid = t_sid;
+	        
+	        namesList.dataProvider = event.result.userlist.user;
+	        
+			//Alert.show(result);
+		}		
+		
+		public function getLocation(): void
+		{			
+			var loginQueryString: String = "reqType=4&sid="+sid+"&uid="+userid+"&puid="+namesList.selectedItem.uid;
+			
+			tracsoService = new HTTPService();
+			tracsoService.resultFormat = "e4x";
+			tracsoService.url = getURL(loginQueryString);
+			tracsoService.addEventListener(ResultEvent.RESULT,locationRequestSuccess);
+			tracsoService.addEventListener(FaultEvent.FAULT,handleFault);
+			tracsoService.send();
+			//Alert.show(tracsoService.url);
+			
+			var tripListQueryString: String = "reqType=7&sid="+sid+"&uid="+userid+"&puid="+namesList.selectedItem.uid;
+			anotherTracsoService = new HTTPService();
+			anotherTracsoService.resultFormat = "e4x";
+			anotherTracsoService.url = getURL(tripListQueryString);
+			anotherTracsoService.addEventListener(ResultEvent.RESULT,tripsListRequestSuccess);
+			anotherTracsoService.addEventListener(FaultEvent.FAULT,handleFault);
+			anotherTracsoService.send();	
+			//Alert.show(anotherTracsoService.url);		
+		}		
+		
+		public function getTripPoints(): void
+		{
+			var tripPointsQueryString: String = "reqType=8&sid="+sid+"&uid="+userid+"&puid="+namesList.selectedItem.uid+"&tid="+tripsList.selectedItem;
+			anotherTracsoService = new HTTPService();
+			anotherTracsoService.resultFormat = "e4x";
+			anotherTracsoService.url = getURL(tripPointsQueryString);
+			anotherTracsoService.addEventListener(ResultEvent.RESULT,tripPointsRequestSuccess);
+			anotherTracsoService.addEventListener(FaultEvent.FAULT,handleFault);
+			anotherTracsoService.send();
+			//Alert.show(anotherTracsoService.url);				
+		}
+
+//	<trippoints>
+//		<point>
+//			<user_id></user_id>
+//			<trip_id></trip_id>
+//			<lattitude></lattitude>
+//			<longitude></longitude>
+//			<last_updated_on></last_updated_on>
+//		</point>
+//	</trippoints>			
+		public function tripPointsRequestSuccess(event: ResultEvent): void
+		{
+			var t_sid:String = event.result.sid ;
+	        var t_uid:String = event.result.uid ;
+	        var t_uname:String = event.result.uname ;
+	        
+	        userid = t_uid;
+	        username = t_uname;
+	        sid = t_sid;
+	        
+	        //Alert.show(event.result.trippoints);
+	        //TO DO:
+	        //GET THE POINTS FROM THE RESULT EVENT AND MAP THEM AS A TRACK ON THE MAP
+	        var pointsXML: XML = new XML(event.result.trippoints);
+	        var points: Array = new Array();
+	        var str: String = "";
+			for each (var property:XML in pointsXML.point)
+			{
+			    var latStr:String = property.LATTITUDE;
+			    var lonStr:String = property.LONGITUDE;
+			    str = str+latStr+" - "+lonStr+" # ";
+			    var p: LatLng = new LatLng(new Number(latStr), new Number(lonStr));
+			    points.push(p);
+			    var m:Marker = new Marker(
+				      p,
+				      new MarkerOptions({
+		                  strokeStyle: new StrokeStyle({color: 0x987654}),
+		                  fillStyle: new FillStyle({color: 0x223344, alpha: 0.8}),
+		                  radius: 12,
+		                  hasShadow: true
+				      }));
+ 
+  				map.addOverlay(m);
+			}
+			
+			//Alert.show(str);			
+			map.setCenter(points[0], 10, MapType.NORMAL_MAP_TYPE);
+		   	var polyline:Polyline = new Polyline(
+		   		points
+		   		, new PolylineOptions({
+				    strokeStyle: new StrokeStyle({
+				    color: 0xFF0000,
+				    thickness: 4,
+				    alpha: 0.7}) 
+				  })
+				);
+		
+			this.map.addOverlay(polyline);			
+		}
+		
+		public function tripsListRequestSuccess(event: ResultEvent): void
+		{
+			var t_sid:String = event.result.sid ;
+	        var t_uid:String = event.result.uid ;
+	        var t_uname:String = event.result.uname ;
+	        
+	        userid = t_uid;
+	        username = t_uname;
+	        sid = t_sid;
+	        
+	        tripsList.dataProvider = event.result.trips.tripid;
+		}
+		
+		public function locationRequestSuccess(event: ResultEvent): void
+		{
+	        var t_sid:String = event.result.sid ;
+	        var t_uid:String = event.result.uid ;
+	        var t_uname:String = event.result.uname ;
+	        
+	        userid = t_uid;
+	        username = t_uname;
+	        sid = t_sid;
+	        
+	        //Alert.show(event.result.location.latitude+" "+event.result.location.longitude);
+	        
+	        //TO DO: Locate the new location on map.
+	        var ll: LatLng  = new LatLng( new Number(event.result.location.latitude),new Number(event.result.location.longitude), false);	        
+	        map.panTo(ll);
+	        map.zoomIn(ll, false, false);
+	        var infoWin: InfoWindowOptions = new InfoWindowOptions();
+	        	infoWin.title = ""+event.result.location.username;
+	        	infoWin.contentHTML = "<b>"+event.result.location.mobilenumber+"</b><br/>"+event.result.location.emailaddress; 
+	        map.openInfoWindow(ll ,infoWin );
+		}
+		
+		public function refreshMap(): void {
+			getLocation();
+		}
+
+		public function createNewUserAccount(): void {
+			var newAccountString: String = "reqType=6&username="+newUserName.text+"&password="+newUserPasword.text+"&mno="+newUserMobile.text+"&email="+newUserEmail.text;
+			
+			tracsoService = new HTTPService();
+			tracsoService.resultFormat = "e4x";
+			tracsoService.url = getURL(newAccountString);
+			tracsoService.addEventListener(ResultEvent.RESULT,newUserAccountRequestSuccess);
+			tracsoService.addEventListener(FaultEvent.FAULT,handleFault);
+			tracsoService.send();
+			//Alert.show(tracsoService.url);
+			
+			//newAccountViewStack.enabled = false;
+		}
+		
+		public function newUserAccountRequestSuccess(event: ResultEvent): void
+		{
+			//newAccountViewStack.enabled = true;
+			newAccountViewStack.selectedIndex = 1;
+			
+	        var t_sid:String = event.result.sid ;
+	        var t_uid:String = event.result.uid ;
+	        var t_uname:String = event.result.uname ;
+
+			Alert.show("Hello "+t_uname+"! Please use: "+t_uid+" for logging in from your device.");
+			
+			if(t_uid.toString() == "-1")
+			{				
+				newAccountResult.text = "New account request was unsuccessfull. Try Later.";
+			}
+			
+		}
+		
+	]]>
+</mx:Script>
+	<mx:HTTPService id="tracsoService"/>
+	<mx:HTTPService id="anotherTracsoService" />
+	<mx:Image source="assets/images/tracso-logo.png" id="tracsoLogo" left="19" top="6" width="376" height="72"/>
+	<mx:ViewStack id="mainViewStack" left="0" top="79" bottom="48" right="10">
+		<mx:Canvas label="Welcome" width="100%" height="100%" borderStyle="solid" borderThickness="0" borderColor="#FFFFFF" id="loginScreen">
+			<mx:TextInput id="userIdInput" x="714.5" y="177" color="#000000" fontWeight="bold"/>
+			<mx:Label x="649.5" y="179" text="Admin ID" color="#000000" fontWeight="bold"/>
+			<mx:TextInput x="714.5" y="207" displayAsPassword="true" id="passwordInput" color="#000000"/>
+			<mx:Label x="649.5" y="209" text="Password" color="#000000" fontWeight="bold"/>
+			<mx:Button x="818.5" y="283" label="Login" color="#000000" fontWeight="bold" click="{login();}"/>
+			<mx:VRule x="537" y="196"/>
+			<mx:ViewStack x="65" y="111" id="newAccountViewStack" width="364" height="334" borderStyle="solid" borderThickness="0" selectedIndex="0">
+				<mx:Canvas label="View 1" width="100%" height="100%" borderStyle="solid" borderThickness="0">
+					<mx:Label x="10" y="10" text="Sign Up Now!" color="#000000" fontStyle="normal" fontWeight="bold" fontSize="21" fontFamily="Verdana"/>
+					<mx:Label x="65" y="72" text="Username" color="#000000"/>
+					<mx:Label x="65" y="98" text="Password" color="#000000"/>
+					<mx:TextInput x="146" y="70" id="newUserName" color="#000000"/>
+					<mx:TextInput x="146" y="96" displayAsPassword="true" id="newUserPasword" color="#000000"/>					
+					<mx:Text x="33" y="124" text="Contact Number" color="#000000"/>
+					<mx:TextInput x="146" y="122" id="newUserMobile" color="#000000"/>
+					<mx:TextInput x="146" y="149" id="newUserEmail" color="#000000"/>
+					<mx:Label x="86" y="151" text="Email" color="#000000"/>
+					<mx:Button x="241" y="227" label="Submit" color="#000000" click="createNewUserAccount()"/>
+				</mx:Canvas>
+				<mx:Canvas label="Confirmation" width="100%" height="100%" borderStyle="solid" borderThickness="0">
+					<mx:Text x="53" y="38" text="Account was created successfully. &#xa;Use the ID displayed for logging from your device." width="258" height="73" color="#000000" fontWeight="bold" textAlign="center" id="newAccountResult"/>
+					<mx:Button x="272" y="290" label="Return" color="#000000" click="{newAccountViewStack.selectedIndex=0;}"/>
+				</mx:Canvas>
+			</mx:ViewStack>
+			<mx:Label x="602" y="111" text="Login" color="#000000" fontStyle="normal" fontWeight="bold" fontSize="21" fontFamily="Verdana"/>
+		</mx:Canvas>
+		<mx:Canvas label="Administration" width="100%" height="100%" id="adminScreen">
+			<mx:Panel width="205" layout="absolute" title="Select the name of the person." color="#2A2A2A" left="10" top="10" height="621">
+				<mx:ComboBox id="alphabetsList" borderThickness="1" left="5" top="5" bottom="550" right="141" change="getPeopleList()">
+				<mx:dataProvider>
+					<mx:Array>
+						<mx:String>A</mx:String><mx:String>B</mx:String><mx:String>C</mx:String><mx:String>D</mx:String>
+						<mx:String>E</mx:String><mx:String>F</mx:String><mx:String>G</mx:String><mx:String>H</mx:String>
+						<mx:String>I</mx:String><mx:String>J</mx:String><mx:String>K</mx:String><mx:String>L</mx:String>
+						<mx:String>M</mx:String><mx:String>N</mx:String><mx:String>O</mx:String><mx:String>P</mx:String>
+						<mx:String>Q</mx:String><mx:String>R</mx:String><mx:String>S</mx:String><mx:String>T</mx:String>
+						<mx:String>U</mx:String><mx:String>V</mx:String><mx:String>W</mx:String><mx:String>X</mx:String>
+						<mx:String>Y</mx:String><mx:String>Z</mx:String>						
+					</mx:Array>					
+				</mx:dataProvider>
+				</mx:ComboBox>
+				<mx:List  id="namesList" borderThickness="0" left="0" bottom="340" top="39" right="0" itemRenderer="comps.PplListItem" change="getLocation()">
+				</mx:List>
+				<mx:List x="0" y="270" width="185" height="185" borderStyle="solid" borderThickness="0" id="tripsList" change="getTripPoints()"></mx:List>
+				<mx:Label x="1" y="253" text="Select a trip to view on the map" fontWeight="bold" color="#969696"/>
+				<mx:Button x="110" y="7" label="Refresh" click="refreshMap()"/>
+			</mx:Panel>
+			<mx:Canvas right="10" left="223" top="10" bottom="10">
+			<maps:Map xmlns:maps="com.google.maps.*" id="map" mapevent_mapready="onMapReady(event)" 
+			  width="100%" height="100%" key="ABQIAAAAA_1Ma1hYFlHN_KFmEqzfjRTwM0brOpm-All5BF6PoaKBxRWWERRqIGqYaAVX7yJoJmWnWmp_CRKnRw"/>			
+			</mx:Canvas>
+		</mx:Canvas>
+	</mx:ViewStack>
+	<mx:Text x="402.5" y="728" text="Tracso. All Rights Reserved. 2010&#xa;(Best Viewed in IE 8 or Firefox 3.0)" width="219" color="#000000" textAlign="center" fontWeight="bold"/>
+	<mx:ViewStack x="797" y="44" id="loginFunctionalityViewStack" width="217" height="34" borderStyle="solid" borderThickness="0">
+		<mx:Canvas label="blankStatusMessageCanvas" width="100%" height="100%">
+		</mx:Canvas>
+		<mx:Canvas label="loggingInMessageCanvas" width="100%" height="100%">
+			<mx:Label x="13" y="10" width="194" color="#00A2FF" id="loginStatusMessage0" text="Logging in...." textAlign="right" fontWeight="bold"/>
+		</mx:Canvas>
+		<mx:Canvas label="invalidLoginMessageCanvas" width="100%" height="100%">
+			<mx:Text x="18" y="0" text="Invalid Admin ID or Password. &#xa;Try Again" height="34" width="197" color="#FF0000" textAlign="right"/>
+		</mx:Canvas>
+		<mx:Canvas label="logoutButtonCanvas" width="100%" height="100%">
+			<mx:Button x="134" y="10" label="Logout" width="82" color="#000000" id="logoutButton" cornerRadius="0" click="{logout();}"/>
+		</mx:Canvas>		
+	</mx:ViewStack>
+	<mx:Label x="756" y="18" text="Label" width="258" id="welcomeMessage" color="#000000" fontWeight="bold" textAlign="right"/>
+	
+</mx:Application>

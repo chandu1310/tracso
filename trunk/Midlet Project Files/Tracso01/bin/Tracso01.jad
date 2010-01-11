@@ -1,0 +1,8 @@
+MIDlet-1: Tracso01, Tracso01.png, Tracso01
+MIDlet-Jar-Size: 6549
+MIDlet-Jar-URL: Tracso01.jar
+MIDlet-Name: Tracso01
+MIDlet-Vendor: Unknown
+MIDlet-Version: 1.0
+MicroEdition-Configuration: CLDC-1.1
+MicroEdition-Profile: MIDP-2.0

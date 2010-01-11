@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml" width="182" height="22">
+    <mx:Label text="{data.name}" width="155" textAlign="left" height="21" color="#003D5C" fontWeight="bold" fontFamily="Verdana"/>
+</mx:HBox>
