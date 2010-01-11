@@ -1,0 +1,148 @@
+CREATE SEQUENCE tracso_seq START WITH 1101 INCREMENT BY 1;
+
+DROP TABLE users;
+DROP TABLE personal_information;
+DROP TABLE  locations;
+DROP TABLE trip_information;
+DROP PROCEDURE tracso_new_user;
+DROP PROCEDURE tracso_updatelocation;
+DROP PROCEDURE tracso_addtotrip;
+
+CREATE TABLE users (
+  user_id NUMBER UNIQUE,
+  password CHAR(15)
+);
+
+CREATE TABLE personal_information (
+  user_id NUMBER UNIQUE,
+  user_name CHAR(50),
+  mobile_number CHAR(13),
+  email_address CHAR(30)
+);
+
+CREATE TABLE locations (
+  user_id NUMBER UNIQUE,
+  lattitude NUMBER(17,15),
+  longitude NUMBER(17,15),
+  last_updated_on date
+);
+
+CREATE TABLE trip_information (
+  user_id NUMBER NOT NULL,
+  trip_id CHAR(15) NOT NULL,
+  lattitude NUMBER(17,15),
+  longitude NUMBER(17,15),
+  last_updated_on date
+);
+
+
+
+
+CREATE OR REPLACE Procedure tracso_new_user
+    ( p_user_name IN personal_information.user_name%TYPE
+    , p_password IN users.password%TYPE
+    , p_mobile_number IN personal_information.mobile_number%TYPE
+    , p_email_address IN personal_information.email_address%TYPE
+    , p_user_id OUT users.user_id%TYPE)
+IS
+BEGIN
+  INSERT INTO users values(tracso_seq.NEXTVAL, p_password);
+  INSERT INTO personal_information values(tracso_seq.CURRVAL, p_user_name, p_mobile_number, p_email_address);
+  INSERT INTO locations values(tracso_seq.CURRVAL, -1, -1, sysdate);
+  SELECT tracso_seq.CURRVAL INTO p_user_id from dual;
+  COMMIT;
+END;
+
+
+CREATE OR REPLACE Procedure tracso_updatelocation
+    ( p_user_id IN locations.user_id%TYPE, p_lattitude IN locations.lattitude%TYPE, p_longitude IN locations.longitude%TYPE )
+IS
+BEGIN
+  UPDATE locations
+  SET
+    lattitude = p_lattitude,
+    longitude = p_longitude,
+    last_updated_on = sysdate
+  WHERE
+    user_id = p_user_id;
+END;
+
+
+CREATE OR REPLACE Procedure tracso_addtotrip
+    ( p_user_id IN locations.user_id%TYPE
+    , p_trip_id IN trip_information.trip_id%TYPE
+    , p_lattitude IN locations.lattitude%TYPE
+    , p_longitude IN locations.longitude%TYPE )
+IS
+l_temp NUMBER;
+BEGIN
+  DELETE FROM trip_information
+  WHERE
+  trip_information.user_id = p_user_id
+  AND trip_information.trip_id = p_trip_id
+  AND trip_information.last_updated_on<SYSDATE-1;
+
+  INSERT INTO trip_information values(p_user_id, p_trip_id, p_lattitude, p_longitude, sysdate);
+END;
+
+
+-------------------------------------------------------------------------
+TEST SCRIPTS::
+--------------------------------------------------------------------------
+SELECT * FROM users,personal_information WHERE users.user_id = personal_information.user_id;
+SELECT * FROM personal_information;
+SELECT * FROM locations;
+SELECT * FROM trip_information;
+
+
+
+DECLARE
+  id NUMBER;
+BEGIN
+  tracso_new_user('admin','welcome', '+919966061206', 'admin@tracso.com', id);    --  1176
+  tracso_new_user('guest','welcome', '+919966061207', 'guest@tracso.com', id);      -- 1177
+  tracso_new_user('chandu','welcome', '+919966061208', 'chandu@tracso.com', id);      -- 1178
+  tracso_new_user('bharath','welcome', '+919966061209', 'bharath@tracso.com', id);      -- 1179
+  COMMIT;
+END;
+
+
+BEGIN
+  tracso_updatelocation(1176, 17.400442119113684,78.4808349609375);  -- HYD
+  tracso_updatelocation(1177, 12.981140431998927,77.59300231933594); -- BLR
+  tracso_updatelocation(1178, 19.047190365051857,72.8668212890625);      -- MUM
+  tracso_updatelocation(1179, 13.080147108241142,80.28053283691406);    -- CHENNAI
+  COMMIT;
+END;
+
+BEGIN
+  tracso_addtotrip(1162, 'admin-1',17.376852, 78.486328);
+  tracso_addtotrip(1162, 'admin-1',17.261482, 78.777465);
+  tracso_addtotrip(1162, 'admin-1',17.214264, 79.101562);
+  tracso_addtotrip(1162, 'admin-1',17.161785, 79.304809);
+  tracso_addtotrip(1162, 'admin-2',17.130291, 79.579467);
+  tracso_addtotrip(1162, 'admin-2',17.009514, 79.892578);
+  tracso_addtotrip(1162, 'admin-2',16.767727, 80.271606);
+  tracso_addtotrip(1162, 'admin-2',16.499299, 80.639648);
+  COMMIT;
+END;
+
+
+-- Querys for testing data:
+SELECT * FROM personal_information, locations WHERE personal_information.user_id = locations.user_id;
+
+SELECT USER_NAME, USER_ID FROM personal_information WHERE Lower(user_name) LIKE 'a%';
+SELECT USER_NAME, MOBILE_NUMBER, EMAIL_ADDRESS, LATTITUDE, LONGITUDE FROM personal_information, locations WHERE personal_information.user_id = '1161' AND personal_information.user_id = locations.user_id;
+SELECT LATTITUDE, LONGITUDE FROM locations WHERE user_id = '1176';
+SELECT Count(*) recordcount FROM users, personal_information WHERE users.user_id = personal_information.user_id AND Lower(user_name) = 'admin' AND Lower(password) = 'welcome';
+SELECT users.user_id FROM users, personal_information WHERE users.user_id = personal_information.user_id AND Lower(user_name) = 'admin' AND Lower(password) = 'welcome';
+UPDATE locations SET LATTITUDE = '101.9', LONGITUDE = '-98.3' WHERE USER_ID = 1161;
+
+--getting trips list
+SELECT trip_id FROM trip_information WHERE user_id = '1162'  AND last_updated_on > SYSDATE-1 GROUP BY trip_id;
+
+SELECT * FROM trip_information WHERE user_id = '1162'  AND trip_id='admin-2' AND last_updated_on > SYSDATE-1 ORDER BY last_updated_on asc;
+
+SELECT * FROM trip_information WHERE user_id = '1162'  AND trip_id='admin-2' AND last_updated_on > SYSDATE-1 ORDER BY last_updated_on asc
+
+
